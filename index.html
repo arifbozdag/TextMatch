@@ -477,40 +477,46 @@
       } catch {}
     }
 
-    // ---------- Optional: Firebase shared sync ----------
-    let sharedDb = null;
-    async function sharedInit() {
-      const note = $('#shared-note');
-      if (!SHARED.enabled) {
-        note.textContent = 'Shared memory: OFF. (Working locally — turn ON by adding a Firebase Realtime Database config in the HTML.)';
-        return;
+// ---------- Optional: Firebase shared sync ----------
+let sharedDb = null;
+async function sharedInit() {
+  const note = $('#shared-note');
+  if (!SHARED.enabled) {
+    note.textContent = 'Shared memory: OFF. (Working locally — turn ON by adding a Firebase Realtime Database config in the HTML.)';
+    return;
+  }
+  try {
+    // eslint-disable-next-line no-undef
+    const app = firebase.initializeApp(SHARED.config);
+    // eslint-disable-next-line no-undef
+    sharedDb = firebase.database();
+    note.textContent = 'Shared memory: ON. Everyone sees the same saves.';
+    // Listen for remote changes
+    sharedDb.ref(SHARED.path).on('value', snap => {
+      const val = snap.val();
+      if (val) {
+        // Accept both array and object shapes
+        saves = Array.isArray(val) ? val : Object.values(val);
+        persistLocal();
+        renderSaves();
       }
-      try {
-        // eslint-disable-next-line no-undef
-        const app = firebase.initializeApp(SHARED.config);
-        // eslint-disable-next-line no-undef
-        sharedDb = firebase.database();
-        note.textContent = 'Shared memory: ON. Everyone sees the same saves.';
-        // Listen for remote changes
-        sharedDb.ref(SHARED.path).on('value', snap => {
-          const val = snap.val();
-          if (val && Array.isArray(val)) {
-            saves = val;
-            persistLocal(); // keep a local mirror
-            renderSaves();
-          }
-        });
-      } catch (e) {
-        note.textContent = 'Shared memory: ERROR starting Firebase. Falling back to local only.';
-        console.error(e);
-      }
-    }
-    async function sharedPush() {
-      if (!SHARED.enabled || !sharedDb) return;
-      try {
-        await sharedDb.ref(SHARED.path).set(saves);
-      } catch (e) { console.error('sharedPush', e); }
-    }
+    });
+  } catch (e) {
+    note.textContent = 'Shared memory: ERROR starting Firebase. Falling back to local only.';
+    console.error(e);
+  }
+}
+
+async function sharedPush() {
+  if (!SHARED.enabled || !sharedDb) return;
+  try {
+    // Store as an object keyed by id
+    const obj = {};
+    saves.forEach(s => { obj[s.id] = s; });
+    await sharedDb.ref(SHARED.path).set(obj);
+  } catch (e) { console.error('sharedPush', e); }
+}
+
 
     // Wire up new buttons
     $('#snapshot-btn').addEventListener('click', addSaveSnapshot);
