@@ -538,29 +538,31 @@
     $('#reset-btn').addEventListener('click', resetGame);
 
     // --- Foldable Deck Builder ---
-    const builderPanel = document.querySelector('.panel.builder');
-    const toggleBtn = document.getElementById('toggle-builder');
+document.addEventListener('DOMContentLoaded', () => {
+  const builderPanel = document.querySelector('.panel.builder');
+  const toggleBtn = document.getElementById('toggle-builder');
+  const startBtn = document.getElementById('start-btn');
 
-    function setBuilderCollapsed(state) {
-      if (state) {
-        builderPanel.classList.add('collapsed');
-        toggleBtn.textContent = '▼ Show';
-      } else {
-        builderPanel.classList.remove('collapsed');
-        toggleBtn.textContent = '▲ Hide';
-      }
+  function setBuilderCollapsed(state) {
+    if (state) {
+      builderPanel.classList.add('collapsed');
+      toggleBtn.textContent = '▼ Show';
+    } else {
+      builderPanel.classList.remove('collapsed');
+      toggleBtn.textContent = '▲ Hide';
     }
+  }
 
-    toggleBtn.addEventListener('click', () => {
-      setBuilderCollapsed(!builderPanel.classList.contains('collapsed'));
-    });
+  toggleBtn.addEventListener('click', () => {
+    setBuilderCollapsed(!builderPanel.classList.contains('collapsed'));
+  });
 
-    // Automatically hide when game starts
-    const originalStartGame = startGame;
-    startGame = function() {
-      setBuilderCollapsed(true);
-      originalStartGame();
-    };
+  // Auto-hide builder when "Start Game" is pressed
+  startBtn.addEventListener('click', () => {
+    setBuilderCollapsed(true);
+  });
+});
+
 
 
     boot();
