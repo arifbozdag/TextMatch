@@ -51,6 +51,22 @@
 
     .panel.builder{overflow:hidden}
     .builder .list{display:grid;gap:8px;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));max-height:320px;overflow:auto;padding-right:4px}
+    /* Foldable Deck Builder panel */
+    .panel.builder.collapsed .list,
+    .panel.builder.collapsed .row:not(:first-child) {
+      max-height: 0;
+      opacity: 0;
+      overflow: hidden;
+      pointer-events: none;
+      transition: all 0.4s ease;
+    }
+
+    .panel.builder .list,
+    .panel.builder .row:not(:first-child) {
+      max-height: 1000px;
+      opacity: 1;
+      transition: all 0.4s ease;
+    }
     .pair{background:#fff;border:1px solid #ffe0ee;padding:8px 10px;border-radius:12px;display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;min-width:0;box-shadow:0 3px 10px rgba(255,182,216,.25)}
     .pair .vals{min-width:0;flex:1 1 auto;display:flex;gap:8px;flex-wrap:nowrap}
     .pair .vals span{background:#fff7fb;padding:6px 8px;border-radius:8px;border:1px solid #ffe0ee;max-width:45%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -89,7 +105,10 @@
 
     <!-- Deck Builder -->
     <section class="panel builder" aria-labelledby="builder-title">
-      <h2 id="builder-title" style="margin-top:0;font-size:1.05rem">Deck Builder</h2>
+      <h2 id="builder-title" style="margin-top:0;font-size:1.05rem;display:flex;justify-content:space-between;align-items:center;">
+        <span>Deck Builder</span>
+        <button id="toggle-builder" type="button" title="Show/Hide Deck Builder">▲ Hide</button>
+      </h2>
       <div class="row" style="gap:10px">
         <input id="a-input" type="text" placeholder="Left (A) — e.g., Country" />
         <input id="b-input" type="text" placeholder="Right (B) — e.g., Capital" />
@@ -517,6 +536,32 @@
     $('#start-btn').addEventListener('click', startGame);
     $('#shuffle-btn').addEventListener('click', animateShuffle);
     $('#reset-btn').addEventListener('click', resetGame);
+
+    // --- Foldable Deck Builder ---
+    const builderPanel = document.querySelector('.panel.builder');
+    const toggleBtn = document.getElementById('toggle-builder');
+
+    function setBuilderCollapsed(state) {
+      if (state) {
+        builderPanel.classList.add('collapsed');
+        toggleBtn.textContent = '▼ Show';
+      } else {
+        builderPanel.classList.remove('collapsed');
+        toggleBtn.textContent = '▲ Hide';
+      }
+    }
+
+    toggleBtn.addEventListener('click', () => {
+      setBuilderCollapsed(!builderPanel.classList.contains('collapsed'));
+    });
+
+    // Automatically hide when game starts
+    const originalStartGame = startGame;
+    startGame = function() {
+      setBuilderCollapsed(true);
+      originalStartGame();
+    };
+
 
     boot();
   </script>
