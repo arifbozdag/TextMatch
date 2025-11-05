@@ -233,7 +233,29 @@
     $('#a-input').addEventListener('keydown', e => { if (e.key==='Enter') { e.preventDefault(); $('#b-input').focus(); } });
     $('#b-input').addEventListener('keydown', e => { if (e.key==='Enter') { e.preventDefault(); addPair($('#a-input').value, $('#b-input').value); } });
     $('#clear-btn').addEventListener('click', () => { pairs = []; renderPairList(); });
-    $('#save-btn').addEventListener('click', () => { localStorage.setItem('textmatch.ab.pairs', JSON.stringify(pairs)); speak('Deck saved'); });
+    // --- Save Deck (local + shared) ---
+$('#save-btn').addEventListener('click', () => {
+  localStorage.setItem('textmatch.ab.pairs', JSON.stringify(pairs));
+  speak('Deck saved locally');
+  // Save as shared snapshot too (optional global sync)
+  try {
+    const deckName = prompt('Give this deck a name to share (optional):', 'My Deck');
+    if (deckName) {
+      const save = {
+        id: crypto.randomUUID(),
+        name: deckName,
+        created: Date.now(),
+        pairs: [...pairs]
+      };
+      saves.push(save);
+      renderSaves();
+      persistLocal();
+      sharedPush(); // sync to Firebase for everyone
+      speak('Deck also saved globally');
+    }
+  } catch (e) { console.error(e); }
+});
+
     $('#load-btn').addEventListener('click', () => {
       const raw = localStorage.getItem('textmatch.ab.pairs'); if (!raw) return;
       try { pairs = JSON.parse(raw) || []; renderPairList(); speak('Deck loaded'); } catch {}
