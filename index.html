@@ -1,0 +1,428 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Text Match — Open Cards (A ↔ B)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root {
+      --gap: 12px;
+      --radius: 14px;
+      --speed: 200ms;
+      /* Card sizing: at least 3 columns when space allows */
+      --card-min: 140px;
+      --card-max: 260px;
+      /* Colors */
+      --bg-1: #0b1020;
+      --bg-2: #121a33;
+      --panel: #0f1428cc;
+      --panel-border: #2b355a;
+      --text: #e9edf7;
+      --muted: #aab4d0;
+      --btn: #273361;
+      --btn-border: #3a4aa4;
+      --A: #223a72;
+      --B: #1b2b5a;
+      --A-border: #6ca6ff;
+      --B-border: #8fd3ff;
+      --match: #0d5d4a;
+      --match-border: #1fe2a0;
+      --select: #7aa2ff;
+      --select-shadow: rgba(122,162,255,0.2);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; padding: 24px; color: var(--text);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      background:
+        radial-gradient(1200px 600px at 10% -10%, #3a4aa422, transparent 60%),
+        radial-gradient(1000px 500px at 110% 10%, #2b7fff22, transparent 55%),
+        linear-gradient(180deg, var(--bg-1), var(--bg-2));
+      min-height: 100svh;
+    }
+    h1 { margin: 0 0 12px; font-size: 1.6rem; letter-spacing:.2px; }
+    .app { max-width: 1100px; margin: 0 auto; display: grid; gap: 18px; }
+    .panel {
+      background: var(--panel);
+      backdrop-filter: blur(4px);
+      border: 1px solid var(--panel-border);
+      border-radius: var(--radius);
+      padding: 16px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.25);
+    }
+    .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+    input[type="text"] {
+      flex:1 1 280px; max-width: 420px;
+      padding:10px 12px; border-radius:10px;
+      border:1px solid var(--btn-border); background:#0b1230; color:var(--text);
+      outline: none;
+    }
+    input[type="text"]::placeholder { color:#7f8bb3; }
+    button {
+      padding:10px 14px; border-radius:10px; border:1px solid var(--btn-border);
+      background: linear-gradient(180deg, var(--btn), #1e2a58);
+      color: var(--text); cursor:pointer; transition: transform .06s ease, filter .15s ease;
+      flex: 0 0 auto;
+    }
+    button:hover { filter: brightness(1.08); }
+    button:active { transform: translateY(1px); }
+
+    .stats { display:flex; gap:12px; flex-wrap:wrap; font-variant-numeric: tabular-nums; color:var(--muted); }
+    .empty-note { color:var(--muted); font-style: italic; }
+    .badge { font-size: 12px; color:var(--muted); border:1px solid #4352a8; padding:2px 6px; border-radius:999px; }
+
+    /* ===== Builder sizing & overflow control ===== */
+    .panel.builder { overflow: hidden; }
+    .builder .list {
+      display: grid; gap: 8px;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      max-height: 320px; overflow: auto; padding-right: 4px;
+    }
+    .pair {
+      background:#0c1233; border:1px solid #23306d; padding:8px 10px; border-radius:10px;
+      display:flex; gap:10px; align-items:center; justify-content:space-between; flex-wrap:wrap; min-width:0;
+    }
+    .pair .vals { min-width:0; flex:1 1 auto; display:flex; gap:8px; flex-wrap:nowrap; }
+    .pair .vals span { background:#0f173d; padding:6px 8px; border-radius:8px; border:1px solid #283579; max-width:45%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .pair .vals .sep { color:#8aa1ff; max-width:10%; flex:0 0 auto; }
+    .pair .controls { flex:0 0 auto; display:flex; gap:8px; align-items:center; }
+
+    /* ===== Game grid: prefer 3 columns, cards can grow vertically with full text ===== */
+    .grid {
+      display:grid; gap: var(--gap);
+      grid-template-columns: repeat(
+        auto-fill,
+        minmax(
+          clamp(var(--card-min), calc((100% - (var(--gap) * 2)) / 3), var(--card-max)),
+          1fr
+        )
+      );
+      position: relative;
+    }
+    .card {
+      position: relative;
+      padding: 14px 12px;
+      min-height: 92px; /* base; height grows with content */
+      text-align:center;
+      border-radius: var(--radius);
+      border:1px solid #334155;
+      background:#0b1020;
+      cursor:pointer;
+      transition: box-shadow var(--speed) linear, background var(--speed) linear, border-color var(--speed) linear, transform .06s ease;
+      user-select: none;
+      display:flex; align-items:center; justify-content:center; flex-direction:column;
+    }
+    .card:hover { transform: translateY(-1px); }
+    .card[data-side="A"] { background: linear-gradient(180deg, var(--A), #172a57); border-color: var(--A-border); }
+    .card[data-side="B"] { background: linear-gradient(180deg, var(--B), #14244a); border-color: var(--B-border); }
+
+    /* Show ALL text: no clamp/ellipsis; allow natural height growth */
+    .label {
+      font-weight:600; line-height:1.25;
+      display:block; /* no -webkit-line-clamp */
+      overflow: visible;
+      white-space: normal;
+      word-break: break-word;
+      max-width: 100%;
+    }
+    .sub { display:block; margin-top:6px; font-size:12px; color:#d0d8ff; opacity:.8; }
+    .card.selected { outline: 2px solid var(--select); box-shadow: 0 0 0 6px var(--select-shadow) inset; }
+    .card.matched { background: var(--match) !important; border-color: var(--match-border) !important; }
+    .card.disabled { opacity: .7; pointer-events: none; }
+
+    .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>Text Match — Open Cards (A ↔ B)</h1>
+      <p style="margin:0;color:var(--muted)">Cards expand vertically so you can read everything. The grid still aims for ≥ 3 columns when space allows; on narrow screens it flows to 2 → 1 columns.</p>
+    </header>
+
+    <!-- Deck Builder -->
+    <section class="panel builder" aria-labelledby="builder-title">
+      <h2 id="builder-title" style="margin-top:0;font-size:1.1rem">Deck Builder</h2>
+      <div class="row" style="gap:10px">
+        <input id="a-input" type="text" placeholder="Left (A) — e.g., Country" />
+        <input id="b-input" type="text" placeholder="Right (B) — e.g., Capital" />
+        <button id="add-btn" type="button">Add Pair</button>
+        <button id="clear-btn" type="button" title="Clear list">Clear</button>
+        <button id="save-btn" type="button" title="Save deck to this browser">Save</button>
+        <button id="load-btn" type="button" title="Load last saved deck">Load</button>
+      </div>
+      <div id="pair-list" class="list" style="margin-top:10px"></div>
+      <div class="actions" style="margin-top:12px">
+        <button id="start-btn" type="button">Start Game (Shuffle)</button>
+      </div>
+    </section>
+
+    <!-- Game -->
+    <section class="panel" aria-labelledby="game-title">
+      <div class="row" style="justify-content:space-between">
+        <h2 id="game-title" style="margin:0;font-size:1.1rem">Game</h2>
+        <div class="stats">
+          <div>Moves: <strong id="moves">0</strong></div>
+          <div>Matches: <strong id="matches">0</strong></div>
+          <div>Time: <strong id="time">00:00</strong></div>
+        </div>
+      </div>
+      <div class="actions" style="margin-top:8px">
+        <button id="reset-btn" type="button">Reset</button>
+        <button id="shuffle-btn" type="button">Shuffle (Animate)</button>
+      </div>
+      <p id="empty-note" class="empty-note">Add at least two pairs, then press “Start Game”.</p>
+      <div id="grid" class="grid" role="grid" aria-live="polite" aria-label="Cards grid"></div>
+      <div id="live" class="sr-only" aria-live="polite"></div>
+    </section>
+  </div>
+
+  <script>
+    // ---------- Helpers ----------
+    const $ = sel => document.querySelector(sel);
+    const speak = msg => { $('#live').textContent = msg; };
+    const fmtTime = s => `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+    const rng = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+    const shuffleInPlace = arr => { for (let i=arr.length-1; i>0; i--) { const j = Math.floor(Math.random()*(i+1)); [arr[i],arr[j]]=[arr[j],arr[i]]; } return arr; };
+
+    // ---------- Deck (Pairs A/B) ----------
+    /** pair: { id: string, A: string, B: string } */
+    let pairs = []; // builder data
+
+    function renderPairList() {
+      const list = $('#pair-list');
+      list.innerHTML = '';
+      if (pairs.length === 0) {
+        const hint = document.createElement('div');
+        hint.className = 'empty-note';
+        hint.textContent = 'No pairs yet. Add at least two A/B pairs.';
+        list.appendChild(hint);
+        return;
+      }
+      pairs.forEach(p => {
+        const item = document.createElement('div');
+        item.className = 'pair';
+
+        const vals = document.createElement('div');
+        vals.className = 'vals';
+        const a = document.createElement('span'); a.textContent = p.A || '—';
+        const sep = document.createElement('span'); sep.className = 'sep'; sep.textContent = '↔';
+        const b = document.createElement('span'); b.textContent = p.B || '—';
+        vals.append(a, sep, b);
+
+        const controls = document.createElement('div');
+        controls.className = 'controls';
+        const idBadge = document.createElement('span'); idBadge.className = 'badge'; idBadge.textContent = `id:${p.id}`;
+        const del = document.createElement('button'); del.textContent = 'Delete';
+        del.addEventListener('click', () => { pairs = pairs.filter(x => x.id !== p.id); renderPairList(); });
+        controls.append(idBadge, del);
+
+        item.append(vals, controls);
+        list.appendChild(item);
+      });
+    }
+
+    function addPair(aVal, bVal) {
+      const A = aVal.trim(), B = bVal.trim();
+      if (!A || !B) return;
+      const id = crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + '-' + rng(1000,9999);
+      pairs.push({ id, A, B });
+      renderPairList();
+      $('#a-input').value = ''; $('#b-input').value = ''; $('#a-input').focus();
+    }
+
+    $('#add-btn').addEventListener('click', () => addPair($('#a-input').value, $('#b-input').value));
+    $('#a-input').addEventListener('keydown', e => { if (e.key==='Enter') { e.preventDefault(); $('#b-input').focus(); } });
+    $('#b-input').addEventListener('keydown', e => { if (e.key==='Enter') { e.preventDefault(); addPair($('#a-input').value, $('#b-input').value); } });
+    $('#clear-btn').addEventListener('click', () => { pairs = []; renderPairList(); });
+    $('#save-btn').addEventListener('click', () => { localStorage.setItem('textmatch.ab.pairs', JSON.stringify(pairs)); speak('Deck saved'); });
+    $('#load-btn').addEventListener('click', () => {
+      const raw = localStorage.getItem('textmatch.ab.pairs'); if (!raw) return;
+      try { pairs = JSON.parse(raw) || []; renderPairList(); speak('Deck loaded'); } catch {}
+    });
+
+    // ---------- Game State ----------
+    /** card: { key: string, pairId: string, side: 'A'|'B', text: string, matched: boolean } */
+    let deck = [];
+    let selection = []; // up to 2 cards
+    let moves = 0, matches = 0, timer = null, elapsed = 0, started = false;
+
+    const grid = $('#grid');
+    const movesEl = $('#moves'), matchesEl = $('#matches'), timeEl = $('#time'), emptyNote = $('#empty-note');
+
+    function resetStats() {
+      moves = 0; matches = 0; elapsed = 0; started = false;
+      movesEl.textContent = '0'; matchesEl.textContent = '0'; timeEl.textContent = '00:00';
+      if (timer) { clearInterval(timer); timer = null; }
+    }
+
+    function startTimer() {
+      if (started) return; started = true;
+      const t0 = Date.now() - (elapsed * 1000);
+      timer = setInterval(() => { elapsed = Math.floor((Date.now() - t0)/1000); timeEl.textContent = fmtTime(elapsed); }, 500);
+    }
+
+    // Build deck: each pair becomes two open cards (A and B) with same pairId
+    function buildDeckFromPairs() {
+      if (pairs.length < 2) { alert('Please add at least two pairs.'); return null; }
+      const cards = [];
+      pairs.forEach(p => {
+        cards.push({ key: p.id + '-A', pairId: p.id, side: 'A', text: p.A, matched: false });
+        cards.push({ key: p.id + '-B', pairId: p.id, side: 'B', text: p.B, matched: false });
+      });
+      return shuffleInPlace(cards);
+    }
+
+    // FLIP animation for grid reorders
+    function animateGridReorder(beforeRectsMap) {
+      const children = Array.from(grid.children);
+      children.forEach(el => {
+        const id = el.dataset.key;
+        const before = beforeRectsMap.get(id);
+        const after = el.getBoundingClientRect();
+        if (!before) return;
+        const dx = before.left - after.left;
+        const dy = before.top - after.top;
+        if (dx || dy) {
+          el.animate(
+            [{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'translate(0, 0)' }],
+            { duration: 280, easing: 'ease' }
+          );
+        }
+      });
+    }
+    function snapshotChildRects() {
+      const map = new Map();
+      Array.from(grid.children).forEach(el => map.set(el.dataset.key, el.getBoundingClientRect()));
+      return map;
+    }
+
+    function renderGrid() {
+      grid.innerHTML = '';
+      if (!deck.length) return;
+      deck.forEach(card => {
+        const cell = document.createElement('div');
+        cell.className = 'card';
+        cell.dataset.key = card.key;
+        cell.dataset.side = card.side;
+        cell.dataset.pair = card.pairId;
+        if (card.matched) cell.classList.add('matched', 'disabled');
+
+        const label = document.createElement('div');
+        label.className = 'label';
+        label.textContent = card.text;
+        const sub = document.createElement('span');
+        sub.className = 'sub'; sub.textContent = `Side ${card.side}`;
+
+        cell.append(label, sub);
+        cell.setAttribute('role','button'); cell.setAttribute('tabindex','0');
+
+        const act = () => handleCardSelect(cell);
+        cell.addEventListener('click', act);
+        cell.addEventListener('keydown', e => { if (e.key==='Enter' || e.key===' ') { e.preventDefault(); act(); } });
+
+        grid.appendChild(cell);
+      });
+    }
+
+    function handleCardSelect(cell) {
+      const key = cell.dataset.key;
+      const card = deck.find(c => c.key === key);
+      if (!card || card.matched) return;
+
+      startTimer();
+
+      // Toggle selection
+      if (cell.classList.contains('selected')) {
+        cell.classList.remove('selected');
+        selection = selection.filter(k => k !== key);
+        return;
+      }
+      if (selection.length === 2) return;
+
+      cell.classList.add('selected');
+      selection.push(key);
+
+      if (selection.length === 2) {
+        moves++; movesEl.textContent = String(moves);
+
+        const [k1, k2] = selection;
+        const c1 = deck.find(c => c.key === k1);
+        const c2 = deck.find(c => c.key === k2);
+
+        // Only allow A-B matches with the same pairId (not A-A or B-B)
+        const isMatch = c1 && c2 && c1.pairId === c2.pairId && c1.side !== c2.side;
+
+        if (isMatch) {
+          deck.find(c => c.key === k1).matched = true;
+          deck.find(c => c.key === k2).matched = true;
+          Array.from(grid.children).forEach(el => {
+            if (el.dataset.key === k1 || el.dataset.key === k2) {
+              el.classList.add('matched','disabled'); el.classList.remove('selected');
+            }
+          });
+          matches++; matchesEl.textContent = String(matches);
+          speak(`Matched pair ${c1.pairId}`);
+          selection = [];
+
+          if (matches === deck.length / 2) {
+            clearInterval(timer);
+            speak(`You win in ${moves} moves, time ${fmtTime(elapsed)}`);
+            alert(`🎉 You win!\nMoves: ${moves}\nTime: ${fmtTime(elapsed)}`);
+          }
+        } else {
+          const [el1, el2] = [k1, k2].map(k => Array.from(grid.children).find(e => e.dataset.key === k));
+          setTimeout(() => {
+            el1?.classList.remove('selected');
+            el2?.classList.remove('selected');
+            selection = [];
+          }, 450);
+        }
+      }
+    }
+
+    function startGame() {
+      const built = buildDeckFromPairs();
+      if (!built) return;
+      deck = built;
+      resetStats();
+      renderGrid();
+      emptyNote.style.display = 'none';
+      speak('Game started. Cards shuffled.');
+    }
+
+    function animateShuffle() {
+      if (!deck.length) return;
+      const before = snapshotChildRects();
+      shuffleInPlace(deck);
+      renderGrid();
+      requestAnimationFrame(() => animateGridReorder(before));
+      speak('Cards shuffled.');
+    }
+
+    function resetGame() {
+      selection = [];
+      deck.forEach(c => c.matched = false);
+      deck = shuffleInPlace(deck);
+      resetStats();
+      renderGrid();
+      emptyNote.style.display = deck.length ? 'none' : '';
+      speak('Game reset.');
+    }
+
+    // Wire up
+    $('#start-btn').addEventListener('click', startGame);
+    $('#shuffle-btn').addEventListener('click', animateShuffle);
+    $('#reset-btn').addEventListener('click', resetGame);
+
+    // Warm start
+    (function init() {
+      try {
+        const raw = localStorage.getItem('textmatch.ab.pairs');
+        if (raw) pairs = JSON.parse(raw) || [];
+      } catch {}
+      renderPairList();
+    })();
+  </script>
+</body>
+</html>
